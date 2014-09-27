@@ -25,7 +25,7 @@ let s:current_channel = {}
 let s:REBUILDFM_FEEDS_URL = 'http://feeds.rebuild.fm/rebuildfm'
 let s:REBUILDFM_MP3_URL = 'http://cache.rebuild.fm/'
 let s:REBUILDFM_MP3_FILE_FORMAT = 'podcast-ep%s.mp3'
-let s:REBUILDFM_LIVE_STREAM_URL = 'http://live.rebuild.fm:8000/listen.m3u'
+let s:REBUILDFM_LIVE_STREAM_URL = 'http://live.rebuild.fm:8000/listen'
 let s:CACHE_FILENAME = 'channel.json'
 let s:PROCESS_NAME = 'rebuildfm'
 lockvar s:REBUILDFM_FEEDS_URL
