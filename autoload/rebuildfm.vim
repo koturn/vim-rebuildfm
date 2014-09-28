@@ -11,7 +11,7 @@ set cpo&vim
 
 let g:rebuildfm#play_command = get(g:, 'rebuildfm#play_command', 'mplayer')
 let g:rebuildfm#play_option = get(g:, 'rebuildfm#play_option', '-really-quiet -slave')
-let g:rebuildfm#cache_dir = get(g:, 'rebuildfm#cache_dir', expand("~/.cache/rebuildfm"))
+let g:rebuildfm#cache_dir = get(g:, 'rebuildfm#cache_dir', expand('~/.cache/rebuildfm'))
 let g:rebuildfm#verbose = get(g:, 'rebuildfm#verbose', 0)
 
 let s:V = vital#of('rebuildfm')
@@ -23,13 +23,11 @@ let s:XML = s:V.import('Web.XML')
 
 let s:current_channel = {}
 let s:REBUILDFM_FEEDS_URL = 'http://feeds.rebuild.fm/rebuildfm'
-let s:REBUILDFM_MP3_URL = 'http://cache.rebuild.fm/'
 let s:REBUILDFM_MP3_FILE_FORMAT = 'podcast-ep%s.mp3'
 let s:REBUILDFM_LIVE_STREAM_URL = 'http://live.rebuild.fm:8000/listen'
 let s:CACHE_FILENAME = 'channel.json'
 let s:PROCESS_NAME = 'rebuildfm'
 lockvar s:REBUILDFM_FEEDS_URL
-lockvar s:REBUILDFM_MP3_URL
 lockvar s:REBUILDFM_MP3_FILE_FORMAT
 lockvar s:REBUILDFM_LIVE_STREAM_URL
 lockvar s:CACHE_FILENAME
@@ -55,7 +53,7 @@ function! rebuildfm#play_by_number(str)
   endif
 
   if empty(l:channel)
-    echoerr 'Cannot find by number'
+    echoerr 'Cannot find mp3 file by the specified number string:' a:str
   else
     let s:current_channel = l:channel
     call s:play(l:channel.enclosure)
@@ -139,24 +137,24 @@ function! rebuildfm#update_channel()
     echoerr 'Connection error:' '[' . l:response.status . ']' l:response.statusText
     return
   endif
-  if l:rebuildfm#verbose
+  if g:rebuildfm#verbose
     echomsg '[HTTP request]:' reltimestr(reltime(l:start_time)) 'ms'
   endif
 
   let l:start_time = reltime()
   let l:dom = s:XML.parse(l:response.content)
-  if l:rebuildfm#verbose
+  if g:rebuildfm#verbose
     echomsg '[parse XML]:' reltimestr(reltime(l:start_time)) 'ms'
   endif
 
   let l:start_time = reltime()
   let l:infos = s:parse_dom(l:dom)
-  if l:rebuildfm#verbose
+  if g:rebuildfm#verbose
     echomsg '[parse DOM]:' reltimestr(reltime(l:start_time)) 'ms'
   endif
 
   let l:write_list = [s:JSON.encode({'rebuildfm': l:infos})]
-  call s:CACHE.writefile(l:rebuildfm#cache_dir, s:CACHE_FILENAME, l:write_list)
+  call s:CACHE.writefile(g:rebuildfm#cache_dir, s:CACHE_FILENAME, l:write_list)
   return l:infos
 endfunction
 
@@ -217,8 +215,9 @@ function! s:parse_description(xml)
 endfunction
 
 function! s:search_mp3_url(channels, filename)
+  let l:pattern = a:filename . '$'
   for l:channel in a:channels
-    if l:channel.enclosure =~# a:filename . '$'
+    if l:channel.enclosure =~# l:pattern
       return l:channel
     endif
   endfor
@@ -226,15 +225,15 @@ function! s:search_mp3_url(channels, filename)
 endfunction
 
 function! s:play(url)
-  if executable(g:rebuildfm#play_command)
-    if s:PM.is_available()
-      call rebuildfm#stop()
-      call s:PM.touch(s:PROCESS_NAME, g:rebuildfm#play_command . ' ' . g:rebuildfm#play_option . ' ' . a:url)
-    else
-      echoerr 'Error: vimproc is unavailable'
-    endif
-  else
+  if !executable(g:rebuildfm#play_command)
     echoerr 'Error: Please install mplayer'
+    return
+  endif
+  if s:PM.is_available()
+    call rebuildfm#stop()
+    call s:PM.touch(s:PROCESS_NAME, g:rebuildfm#play_command . ' ' . g:rebuildfm#play_option . ' ' . a:url)
+  else
+    echoerr 'Error: vimproc is unavailable'
   endif
 endfunction
 
