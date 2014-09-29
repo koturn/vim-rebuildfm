@@ -24,8 +24,10 @@ If you available [unite.vim](https://github.com/Shougo/unite.vim), you may use
 the unite source of this Rebuild.fm client.
 
 ```vim
-:Unite rebuild
+:Unite rebuildfm
 ```
+
+![unite-rebuildfm.png](https://raw.githubusercontent.com/wiki/koturn/vim-rebuildfm/image/unite-rebuildfm.png)
 
 
 ## Dependent plugin
