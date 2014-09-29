@@ -132,25 +132,27 @@ endfunction
 
 function! rebuildfm#update_channel()
   let l:start_time = reltime()
+  let l:time = reltime()
   let l:response = s:HTTP.get(s:REBUILDFM_FEEDS_URL)
   if l:response.status != 200
     echoerr 'Connection error:' '[' . l:response.status . ']' l:response.statusText
     return
   endif
   if g:rebuildfm#verbose
-    echomsg '[HTTP request]:' reltimestr(reltime(l:start_time)) 'ms'
+    echomsg '[HTTP request]:' reltimestr(reltime(l:time)) 's'
   endif
 
-  let l:start_time = reltime()
+  let l:time = reltime()
   let l:dom = s:XML.parse(l:response.content)
   if g:rebuildfm#verbose
-    echomsg '[parse XML]:' reltimestr(reltime(l:start_time)) 'ms'
+    echomsg '[parse XML]:   ' reltimestr(reltime(l:time)) 's'
   endif
 
-  let l:start_time = reltime()
+  let l:time = reltime()
   let l:infos = s:parse_dom(l:dom)
   if g:rebuildfm#verbose
-    echomsg '[parse DOM]:' reltimestr(reltime(l:start_time)) 'ms'
+    echomsg '[parse DOM]:   ' reltimestr(reltime(l:time)) 's'
+    echomsg '[total]:       ' reltimestr(reltime(l:start_time)) 's'
   endif
 
   let l:write_list = [s:JSON.encode({'rebuildfm': l:infos})]
@@ -160,58 +162,57 @@ endfunction
 
 
 function! s:parse_dom(dom)
+  let l:channels = s:get_children_by_name(a:dom, 'channel')
+  let l:items = s:get_children_by_name(l:channels, 'item')
   let l:infos = []
-  for l:c1 in a:dom.child
-    if type(l:c1) == 4 && l:c1.name ==# 'channel'
-      for l:c2 in l:c1.child
-        if type(l:c2) == 4 && l:c2.name ==# 'item'
-          let l:info = {}
-          for l:c3 in l:c2.child
-            if type(l:c3) == 4
-              if l:c3.name ==# 'title'
-                let l:info.title = l:c3.child[0]
-              elseif l:c3.name ==# 'description'
-                let l:info.note = s:parse_description('<html>' . l:c3.child[0] . '</html>')
-              elseif l:c3.name ==# 'pubDate'
-                let l:info.pubDate = l:c3.child[0]
-              elseif l:c3.name ==# 'itunes:summary'
-                let l:info.summary = l:c3.child[0]
-              elseif l:c3.name ==# 'itunes:duration'
-                let l:info.duration = l:c3.child[0]
-              elseif l:c3.name ==# 'enclosure'
-                let l:info.enclosure = l:c3.attr.url
-              endif
-            endif
-            unlet l:c3
-          endfor
-          call add(l:infos, l:info)
+  for l:c1 in l:items
+    let l:info = {}
+    for l:c2 in l:c1.child
+      if type(l:c2) == 4
+        if l:c2.name ==# 'title'
+          let l:info.title = l:c2.child[0]
+        elseif l:c2.name ==# 'description'
+          let l:info.note = s:parse_description('<html>' . l:c2.child[0] . '</html>')
+        elseif l:c2.name ==# 'pubDate'
+          let l:info.pubDate = l:c2.child[0]
+        elseif l:c2.name ==# 'itunes:summary'
+          let l:info.summary = substitute(l:c2.child[0], '\n', ' ', 'g')
+        elseif l:c2.name ==# 'itunes:duration'
+          let l:info.duration = l:c2.child[0]
+        elseif l:c2.name ==# 'enclosure'
+          let l:info.enclosure = l:c2.attr.url
         endif
-        unlet l:c2
-      endfor
-    endif
-    unlet l:c1
+      endif
+      unlet l:c2
+    endfor
+    call add(l:infos, l:info)
   endfor
   return l:infos
 endfunction
 
 function! s:parse_description(xml)
   let l:dom = s:XML.parse(a:xml)
-  let l:note = []
-  for l:c1 in l:dom.child
-    if type(l:c1) == 4 && l:c1.name ==# 'ul'
-      for l:c2 in l:c1.child
-        if type(l:c2) == 4 && l:c2.name ==# 'li'
-          call add(l:note, {
-                \ 'href': l:c2.child[0].attr.href,
-                \ 'text': l:c2.child[0].child[0]
-                \})
-        endif
-        unlet l:c2
-      endfor
-    endif
-    unlet l:c1
-  endfor
-  return l:note
+  let l:uls = s:get_children_by_name(l:dom, 'ul')
+  let l:lis = s:get_children_by_name(l:uls, 'li')
+  let l:lis = filter(l:lis, '!empty(v:val.child) && type(v:val.child[0]) == 4')
+  return map(l:lis, '{
+        \ "href": v:val.child[0].attr.href,
+        \ "text": v:val.child[0].child[0]
+        \}')
+endfunction
+
+function! s:get_children_by_name(parents, child_name)
+  let l:child_list = []
+  if type(a:parents) == 4
+    let l:child_list = filter(a:parents.child, 'type(v:val) == 4 && v:val.name ==# a:child_name')
+  else
+    let l:child_list = []
+    for l:c1 in a:parents
+      let l:child_list += filter(l:c1.child, 'type(v:val) == 4 && v:val.name ==# a:child_name')
+      unlet l:c1 
+    endfor
+  endif
+  return l:child_list
 endfunction
 
 function! s:search_mp3_url(channels, filename)
@@ -229,12 +230,12 @@ function! s:play(url)
     echoerr 'Error: Please install mplayer'
     return
   endif
-  if s:PM.is_available()
-    call rebuildfm#stop()
-    call s:PM.touch(s:PROCESS_NAME, g:rebuildfm#play_command . ' ' . g:rebuildfm#play_option . ' ' . a:url)
-  else
+  if !s:PM.is_available()
     echoerr 'Error: vimproc is unavailable'
+    return
   endif
+  call rebuildfm#stop()
+  call s:PM.touch(s:PROCESS_NAME, g:rebuildfm#play_command . ' ' . g:rebuildfm#play_option . ' ' . a:url)
 endfunction
 
 function! s:is_playing()
