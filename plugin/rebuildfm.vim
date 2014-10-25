@@ -25,6 +25,8 @@ command! -bar -nargs=1 RebuildfmRelSeek call rebuildfm#rel_seek(<f-args>)
 command! -bar -nargs=0 RebuildfmShowInfo call rebuildfm#show_info()
 command! -bar -nargs=0 RebuildfmUpdateChannel call rebuildfm#update_channel()
 
+command! CtrlPRebuildfm cal ctrlp#init(ctrlp#rebuildfm#id())
+
 
 augroup Rebuildfm
   autocmd!
