@@ -15,11 +15,12 @@ let g:rebuildfm#cache_dir = get(g:, 'rebuildfm#cache_dir', expand('~/.cache/rebu
 let g:rebuildfm#verbose = get(g:, 'rebuildfm#verbose', 0)
 
 let s:V = vital#of('rebuildfm')
-let s:PM = s:V.import('ProcessManager')
+let s:L = s:V.import('Data.List')
 let s:CACHE = s:V.import('System.Cache')
-let s:JSON = s:V.import('Web.JSON')
 let s:HTTP = s:V.import('Web.HTTP')
+let s:JSON = s:V.import('Web.JSON')
 let s:XML = s:V.import('Web.XML')
+let s:PM = s:V.import('ProcessManager')
 
 let s:current_channel = {}
 let s:REBUILDFM_FEEDS_URL = 'http://feeds.rebuild.fm/rebuildfm'
@@ -132,7 +133,7 @@ endfunction
 
 function! rebuildfm#update_channel()
   let l:start_time = reltime()
-  let l:time = reltime()
+  let l:time = l:start_time
   let l:response = s:HTTP.get(s:REBUILDFM_FEEDS_URL)
   if l:response.status != 200
     echoerr 'Connection error:' '[' . l:response.status . ']' l:response.statusText
@@ -162,67 +163,41 @@ endfunction
 
 
 function! s:parse_dom(dom)
-  let l:channels = s:get_children_by_name(a:dom, 'channel')
-  let l:items = s:get_children_by_name(l:channels, 'item')
-  let l:infos = []
-  for l:c1 in l:items
-    let l:info = {}
-    for l:c2 in l:c1.child
-      if type(l:c2) == 4
-        if l:c2.name ==# 'title'
-          let l:info.title = l:c2.child[0]
-        elseif l:c2.name ==# 'description'
-          let l:info.note = s:parse_description('<html>' . l:c2.child[0] . '</html>')
-        elseif l:c2.name ==# 'pubDate'
-          let l:info.pubDate = l:c2.child[0]
-        elseif l:c2.name ==# 'itunes:summary'
-          let l:info.summary = substitute(l:c2.child[0], '\n', ' ', 'g')
-        elseif l:c2.name ==# 'itunes:duration'
-          let l:info.duration = l:c2.child[0]
-        elseif l:c2.name ==# 'enclosure'
-          let l:info.enclosure = l:c2.attr.url
-        endif
-      endif
-      unlet l:c2
-    endfor
-    call add(l:infos, l:info)
+  return map(a:dom.childNode('channel').childNodes('item'), 's:make_info(v:val)')
+endfunction
+
+function! s:make_info(item)
+  let l:info = {}
+  for l:c in filter(a:item.child, 'type(v:val) == 4')
+    if l:c.name ==# 'title'
+      let l:info.title = l:c.value()
+    elseif l:c.name ==# 'description'
+      let l:info.note = s:parse_description('<html>' . l:c.value() . '</html>')
+    elseif l:c.name ==# 'pubDate'
+      let l:info.pubDate = l:c.value()
+    elseif l:c.name ==# 'itunes:summary'
+      let l:info.summary = substitute(l:c.value(), '\n', ' ', 'g')
+    elseif l:c.name ==# 'itunes:duration'
+      let l:info.duration = l:c.value()
+    elseif l:c.name ==# 'enclosure'
+      let l:info.enclosure = l:c.attr.url
+    endif
   endfor
-  return l:infos
+  return l:info
 endfunction
 
 function! s:parse_description(xml)
-  let l:dom = s:XML.parse(a:xml)
-  let l:uls = s:get_children_by_name(l:dom, 'ul')
-  let l:lis = s:get_children_by_name(l:uls, 'li')
-  let l:lis = filter(l:lis, '!empty(v:val.child) && type(v:val.child[0]) == 4')
-  return map(l:lis, '{
-        \ "href": v:val.child[0].attr.href,
-        \ "text": v:val.child[0].child[0]
+  let l:lis = s:L.flatten(map(s:XML.parse(a:xml).childNodes('ul'), 'v:val.childNodes("li")'), 1)
+  return map(map(filter(l:lis, '!empty(v:val.child) && type(v:val.child[0]) == 4'), 'v:val.child[0]'), '{
+        \ "href": v:val.attr.href,
+        \ "text": v:val.value()
         \}')
-endfunction
-
-function! s:get_children_by_name(parents, child_name)
-  let l:child_list = []
-  if type(a:parents) == 4
-    let l:child_list = filter(a:parents.child, 'type(v:val) == 4 && v:val.name ==# a:child_name')
-  else
-    let l:child_list = []
-    for l:c1 in a:parents
-      let l:child_list += filter(l:c1.child, 'type(v:val) == 4 && v:val.name ==# a:child_name')
-      unlet l:c1 
-    endfor
-  endif
-  return l:child_list
 endfunction
 
 function! s:search_mp3_url(channels, filename)
   let l:pattern = a:filename . '$'
-  for l:channel in a:channels
-    if l:channel.enclosure =~# l:pattern
-      return l:channel
-    endif
-  endfor
-  return {}
+  let l:channels = filter(a:channels, 'v:val.enclosure =~# l:pattern')
+  return len(l:channels) == 0 ? {} : l:channels[0]
 endfunction
 
 function! s:play(url)
