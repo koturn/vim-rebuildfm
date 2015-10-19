@@ -35,36 +35,36 @@ lockvar s:CACHE_FILENAME
 lockvar s:PROCESS_NAME
 
 
-function! rebuildfm#play(channel)
+function! rebuildfm#play(channel) abort
   let s:current_channel = a:channel
   call s:play(a:channel.enclosure)
 endfunction
 
-function! rebuildfm#play_by_number(str)
-  let l:channels = rebuildfm#get_channel_list()
-  let l:filename = printf(s:REBUILDFM_MP3_FILE_FORMAT, a:str)
-  let l:channel = s:search_mp3_url(l:channels, l:filename)
-  if empty(l:channel)
-    let l:filename = printf(s:REBUILDFM_MP3_FILE_FORMAT, a:str . '-r2')
-    let l:channel = s:search_mp3_url(l:channels, l:filename)
+function! rebuildfm#play_by_number(str) abort
+  let channels = rebuildfm#get_channel_list()
+  let filename = printf(s:REBUILDFM_MP3_FILE_FORMAT, a:str)
+  let channel = s:search_mp3_url(channels, filename)
+  if empty(channel)
+    let filename = printf(s:REBUILDFM_MP3_FILE_FORMAT, a:str . '-r2')
+    let channel = s:search_mp3_url(channels, filename)
   endif
-  if empty(l:channel)
-    let l:filename = printf(s:REBUILDFM_MP3_FILE_FORMAT, a:str . '-r2')
-    let l:channel = s:search_mp3_url(l:channels, l:filename)
+  if empty(channel)
+    let filename = printf(s:REBUILDFM_MP3_FILE_FORMAT, a:str . '-r2')
+    let channel = s:search_mp3_url(channels, filename)
   endif
 
-  if empty(l:channel)
+  if empty(channel)
     echoerr 'Cannot find mp3 file by the specified number string:' a:str
   else
-    let s:current_channel = l:channel
-    call s:play(l:channel.enclosure)
+    let s:current_channel = channel
+    call s:play(channel.enclosure)
     if g:rebuildfm#verbose
-      echo 'Now playing:' l:channel.enclosure
+      echo 'Now playing:' channel.enclosure
     endif
   endif
 endfunction
 
-function! rebuildfm#show_info()
+function! rebuildfm#show_info() abort
   if empty(s:current_channel) || !s:is_playing() | return | endif
   echo '[TITLE] ' s:current_channel.title
   echo '[PUBLISHED DATE] ' s:current_channel.pubDate
@@ -72,58 +72,58 @@ function! rebuildfm#show_info()
   echo '[SUMMARY]'
   echo '  ' s:current_channel.summary
   echo '[NOTES]'
-  for l:item in s:current_channel.note
-    echo '  -' l:item.text
+  for item in s:current_channel.note
+    echo '  -' item.text
   endfor
 endfunction
 
-function! rebuildfm#toggle_pause()
+function! rebuildfm#toggle_pause() abort
   if s:is_playing()
     call s:PM.writeln(s:PROCESS_NAME, 'pause')
   endif
 endfunction
 
-function! rebuildfm#toggle_mute()
+function! rebuildfm#toggle_mute() abort
   if s:is_playing()
     call s:PM.writeln(s:PROCESS_NAME, 'mute')
   endif
 endfunction
 
-function! rebuildfm#set_volume(volume)
+function! rebuildfm#set_volume(volume) abort
   if s:is_playing()
     call s:PM.writeln(s:PROCESS_NAME, 'volume ' . a:volume . ' 1')
   endif
 endfunction
 
-function! rebuildfm#set_speed(speed)
+function! rebuildfm#set_speed(speed) abort
   if s:is_playing()
     call s:PM.writeln(s:PROCESS_NAME, 'speed_set ' . a:speed)
   endif
 endfunction
 
-function! rebuildfm#seek(pos)
+function! rebuildfm#seek(pos) abort
   if s:is_playing()
     call s:PM.writeln(s:PROCESS_NAME, 'seek ' . a:pos . ' 1')
   endif
 endfunction
 
-function! rebuildfm#rel_seek(pos)
+function! rebuildfm#rel_seek(pos) abort
   if s:is_playing()
     call s:PM.writeln(s:PROCESS_NAME, 'seek ' . a:pos)
   endif
 endfunction
 
-function! rebuildfm#stop()
+function! rebuildfm#stop() abort
   if s:is_playing()
     call s:PM.kill(s:PROCESS_NAME)
   endif
 endfunction
 
-function! rebuildfm#live_stream()
+function! rebuildfm#live_stream() abort
   call s:play(s:REBUILDFM_LIVE_STREAM_URL)
 endfunction
 
-function! rebuildfm#get_channel_list()
+function! rebuildfm#get_channel_list() abort
   if s:CACHE.filereadable(g:rebuildfm#cache_dir, s:CACHE_FILENAME)
     return s:JSON.decode(s:CACHE.readfile(g:rebuildfm#cache_dir, s:CACHE_FILENAME)[0]).rebuildfm
   else
@@ -131,76 +131,76 @@ function! rebuildfm#get_channel_list()
   endif
 endfunction
 
-function! rebuildfm#update_channel()
-  let l:start_time = reltime()
-  let l:time = l:start_time
-  let l:response = s:HTTP.get(s:REBUILDFM_FEEDS_URL)
-  if l:response.status != 200
-    echoerr 'Connection error:' '[' . l:response.status . ']' l:response.statusText
+function! rebuildfm#update_channel() abort
+  let start_time = reltime()
+  let time = start_time
+  let response = s:HTTP.get(s:REBUILDFM_FEEDS_URL)
+  if response.status != 200
+    echoerr 'Connection error:' '[' . response.status . ']' response.statusText
     return
   endif
   if g:rebuildfm#verbose
-    echomsg '[HTTP request]:' reltimestr(reltime(l:time)) 's'
+    echomsg '[HTTP request]:' reltimestr(reltime(time)) 's'
   endif
 
-  let l:time = reltime()
-  let l:dom = s:XML.parse(l:response.content)
+  let time = reltime()
+  let dom = s:XML.parse(response.content)
   if g:rebuildfm#verbose
-    echomsg '[parse XML]:   ' reltimestr(reltime(l:time)) 's'
+    echomsg '[parse XML]:   ' reltimestr(reltime(time)) 's'
   endif
 
-  let l:time = reltime()
-  let l:infos = s:parse_dom(l:dom)
+  let time = reltime()
+  let infos = s:parse_dom(dom)
   if g:rebuildfm#verbose
-    echomsg '[parse DOM]:   ' reltimestr(reltime(l:time)) 's'
-    echomsg '[total]:       ' reltimestr(reltime(l:start_time)) 's'
+    echomsg '[parse DOM]:   ' reltimestr(reltime(time)) 's'
+    echomsg '[total]:       ' reltimestr(reltime(start_time)) 's'
   endif
 
-  let l:write_list = [s:JSON.encode({'rebuildfm': l:infos})]
-  call s:CACHE.writefile(g:rebuildfm#cache_dir, s:CACHE_FILENAME, l:write_list)
-  return l:infos
+  let write_list = [s:JSON.encode({'rebuildfm': infos})]
+  call s:CACHE.writefile(g:rebuildfm#cache_dir, s:CACHE_FILENAME, write_list)
+  return infos
 endfunction
 
 
-function! s:parse_dom(dom)
+function! s:parse_dom(dom) abort
   return map(a:dom.childNode('channel').childNodes('item'), 's:make_info(v:val)')
 endfunction
 
-function! s:make_info(item)
-  let l:info = {}
-  for l:c in filter(a:item.child, 'type(v:val) == 4')
-    if l:c.name ==# 'title'
-      let l:info.title = l:c.value()
-    elseif l:c.name ==# 'description'
-      let l:info.note = s:parse_description('<html>' . l:c.value() . '</html>')
-    elseif l:c.name ==# 'pubDate'
-      let l:info.pubDate = l:c.value()
-    elseif l:c.name ==# 'itunes:summary'
-      let l:info.summary = substitute(l:c.value(), '\n', ' ', 'g')
-    elseif l:c.name ==# 'itunes:duration'
-      let l:info.duration = l:c.value()
-    elseif l:c.name ==# 'enclosure'
-      let l:info.enclosure = l:c.attr.url
+function! s:make_info(item) abort
+  let info = {}
+  for c in filter(a:item.child, 'type(v:val) == 4')
+    if c.name ==# 'title'
+      let info.title = c.value()
+    elseif c.name ==# 'description'
+      let info.note = s:parse_description('<html>' . c.value() . '</html>')
+    elseif c.name ==# 'pubDate'
+      let info.pubDate = c.value()
+    elseif c.name ==# 'itunes:summary'
+      let info.summary = substitute(c.value(), '\n', ' ', 'g')
+    elseif c.name ==# 'itunes:duration'
+      let info.duration = c.value()
+    elseif c.name ==# 'enclosure'
+      let info.enclosure = c.attr.url
     endif
   endfor
-  return l:info
+  return info
 endfunction
 
-function! s:parse_description(xml)
-  let l:lis = s:L.flatten(map(s:XML.parse(a:xml).childNodes('ul'), 'v:val.childNodes("li")'), 1)
-  return map(map(filter(l:lis, '!empty(v:val.child) && type(v:val.child[0]) == 4'), 'v:val.child[0]'), '{
+function! s:parse_description(xml) abort
+  let lis = s:L.flatten(map(s:XML.parse(a:xml).childNodes('ul'), 'v:val.childNodes("li")'), 1)
+  return map(map(filter(lis, '!empty(v:val.child) && type(v:val.child[0]) == 4'), 'v:val.child[0]'), '{
         \ "href": v:val.attr.href,
         \ "text": v:val.value()
         \}')
 endfunction
 
-function! s:search_mp3_url(channels, filename)
-  let l:pattern = a:filename . '$'
-  let l:channels = filter(a:channels, 'v:val.enclosure =~# l:pattern')
-  return len(l:channels) == 0 ? {} : l:channels[0]
+function! s:search_mp3_url(channels, filename) abort
+  let pattern = a:filename . '$'
+  let channels = filter(a:channels, 'v:val.enclosure =~# pattern')
+  return len(channels) == 0 ? {} : channels[0]
 endfunction
 
-function! s:play(url)
+function! s:play(url) abort
   if !executable(g:rebuildfm#play_command)
     echoerr 'Error: Please install mplayer'
     return
@@ -213,13 +213,13 @@ function! s:play(url)
   call s:PM.touch(s:PROCESS_NAME, g:rebuildfm#play_command . ' ' . g:rebuildfm#play_option . ' ' . a:url)
 endfunction
 
-function! s:is_playing()
-  let l:status = 'dead'
+function! s:is_playing() abort
+  let status = 'dead'
   try
-    let l:status = s:PM.status(s:PROCESS_NAME)
+    let status = s:PM.status(s:PROCESS_NAME)
   catch
   endtry
-  return l:status ==# 'inactive' || l:status ==# 'active'
+  return status ==# 'inactive' || status ==# 'active'
 endfunction
 
 
