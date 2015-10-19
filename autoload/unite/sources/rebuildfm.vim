@@ -32,6 +32,7 @@ endfunction
 
 function! s:source.gather_candidates(args, context) abort
   let channels = rebuildfm#get_channel_list()
+  echo channels
   return map(channels, '{
         \ "word": v:val.title,
         \ "action__channel": v:val,

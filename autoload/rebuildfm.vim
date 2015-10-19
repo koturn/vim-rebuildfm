@@ -16,9 +16,8 @@ let g:rebuildfm#verbose = get(g:, 'rebuildfm#verbose', 0)
 
 let s:V = vital#of('rebuildfm')
 let s:L = s:V.import('Data.List')
-let s:CACHE = s:V.import('System.Cache')
+let s:CacheFile = s:V.import('System.Cache').new('file', {'cache_dir': g:rebuildfm#cache_dir})
 let s:HTTP = s:V.import('Web.HTTP')
-let s:JSON = s:V.import('Web.JSON')
 let s:XML = s:V.import('Web.XML')
 let s:PM = s:V.import('ProcessManager')
 
@@ -26,12 +25,10 @@ let s:current_channel = {}
 let s:REBUILDFM_FEEDS_URL = 'http://feeds.rebuild.fm/rebuildfm'
 let s:REBUILDFM_MP3_FILE_FORMAT = 'podcast-ep%s.mp3'
 let s:REBUILDFM_LIVE_STREAM_URL = 'http://live.rebuild.fm:8000/listen'
-let s:CACHE_FILENAME = 'channel.json'
 let s:PROCESS_NAME = 'rebuildfm'
 lockvar s:REBUILDFM_FEEDS_URL
 lockvar s:REBUILDFM_MP3_FILE_FORMAT
 lockvar s:REBUILDFM_LIVE_STREAM_URL
-lockvar s:CACHE_FILENAME
 lockvar s:PROCESS_NAME
 
 
@@ -124,11 +121,8 @@ function! rebuildfm#live_stream() abort
 endfunction
 
 function! rebuildfm#get_channel_list() abort
-  if s:CACHE.filereadable(g:rebuildfm#cache_dir, s:CACHE_FILENAME)
-    return s:JSON.decode(s:CACHE.readfile(g:rebuildfm#cache_dir, s:CACHE_FILENAME)[0]).rebuildfm
-  else
-    return rebuildfm#update_channel()
-  endif
+  let infos = s:CacheFile.get('channel')
+  return empty(infos) ? rebuildfm#update_channel() : infos
 endfunction
 
 function! rebuildfm#update_channel() abort
@@ -156,8 +150,7 @@ function! rebuildfm#update_channel() abort
     echomsg '[total]:       ' reltimestr(reltime(start_time)) 's'
   endif
 
-  let write_list = [s:JSON.encode({'rebuildfm': infos})]
-  call s:CACHE.writefile(g:rebuildfm#cache_dir, s:CACHE_FILENAME, write_list)
+  call s:CacheFile.set('channel', infos)
   return infos
 endfunction
 
