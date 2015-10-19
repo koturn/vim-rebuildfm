@@ -1,20 +1,20 @@
 let s:save_cpo = &cpo
 set cpo&vim
 
-function! s:_vital_loaded(V)
+function! s:_vital_loaded(V) abort
   let s:V = a:V
 
   let s:S = s:V.import('Data.String')
   let s:H = s:V.import('Web.HTTP')
 endfunction
 
-function! s:_vital_depends()
+function! s:_vital_depends() abort
   return ['Data.String', 'Web.HTTP']
 endfunction
 
 let s:__template = { 'name': '', 'attr': {}, 'child': [] }
 
-function! s:decodeEntityReference(str)
+function! s:decodeEntityReference(str) abort
   let str = a:str
   let str = substitute(str, '&gt;', '>', 'g')
   let str = substitute(str, '&lt;', '<', 'g')
@@ -28,7 +28,7 @@ function! s:decodeEntityReference(str)
   return str
 endfunction
 
-function! s:encodeEntityReference(str)
+function! s:encodeEntityReference(str) abort
   let str = a:str
   let str = substitute(str, '&', '\&amp;', 'g')
   let str = substitute(str, '>', '\&gt;', 'g')
@@ -41,7 +41,7 @@ function! s:encodeEntityReference(str)
   return str
 endfunction
 
-function! s:__matchNode(node, cond)
+function! s:__matchNode(node, cond) abort
   if type(a:cond) == 1 && a:node.name == a:cond
     return 1
   endif
@@ -64,7 +64,7 @@ function! s:__matchNode(node, cond)
   return 0
 endfunction
 
-function! s:__template.childNode(...) dict
+function! s:__template.childNode(...) dict abort
   for c in self.child
     if type(c) == 4 && s:__matchNode(c, a:000)
       return c
@@ -74,7 +74,7 @@ function! s:__template.childNode(...) dict
   return {}
 endfunction
 
-function! s:__template.childNodes(...) dict
+function! s:__template.childNodes(...) dict abort
   let ret = []
   for c in self.child
     if type(c) == 4 && s:__matchNode(c, a:000)
@@ -85,7 +85,7 @@ function! s:__template.childNodes(...) dict
   return ret
 endfunction
 
-function! s:__template.value(...) dict
+function! s:__template.value(...) dict abort
   if a:0
     let self.child = a:000
     return
@@ -102,7 +102,7 @@ function! s:__template.value(...) dict
   return ret
 endfunction
 
-function! s:__template.find(...) dict
+function! s:__template.find(...) dict abort
   for c in self.child
     if type(c) == 4
       if s:__matchNode(c, a:000)
@@ -119,7 +119,7 @@ function! s:__template.find(...) dict
   return {}
 endfunction
 
-function! s:__template.findAll(...) dict
+function! s:__template.findAll(...) dict abort
   let ret = []
   for c in self.child
     if type(c) == 4
@@ -133,7 +133,7 @@ function! s:__template.findAll(...) dict
   return ret
 endfunction
 
-function! s:__template.toString() dict
+function! s:__template.toString() dict abort
   let xml = '<' . self.name
   for attr in keys(self.attr)
     let xml .= ' ' . attr . '="' . s:encodeEntityReference(self.attr[attr]) . '"'
@@ -157,14 +157,14 @@ function! s:__template.toString() dict
   return xml
 endfunction
 
-function! s:createElement(name)
+function! s:createElement(name) abort
   let node = deepcopy(s:__template)
   let node.name = a:name
   return node
 endfunction
 
 " @vimlint(EVL102, 1, l:content)
-function! s:__parse_tree(ctx, top)
+function! s:__parse_tree(ctx, top) abort
   let node = a:top
   let stack = [a:top]
   " content accumulates the text only tags
@@ -179,7 +179,7 @@ function! s:__parse_tree(ctx, top)
     let matches = matchlist(match, mx)
     if len(matches)
       let encoding = matches[1]
-      if len(encoding) && len(a:ctx['encoding']) == 0
+      if encoding !=# '' && a:ctx['encoding'] ==# ''
         let a:ctx['encoding'] = encoding
         let a:ctx['xml'] = iconv(a:ctx['xml'], encoding, &encoding)
       endif
@@ -189,25 +189,27 @@ function! s:__parse_tree(ctx, top)
   " this regex matches
   " 1) the remaining until the next tag begins
   "    2) maybe closing "/" of tag name
-  "    3)  tagname
+  "    3) tagname
   "    4) the attributes of the text (optional)
   "    5) maybe closing "/" (end of tag name)
   " or
   "    6) CDATA or ''
   "    7) text content of CDATA
-  " 8) the remaining text after the tag (rest)
+  " or
+  "    8) comment
   " (These numbers correspond to the indexes in matched list m)
-  let tag_mx = '^\(\_.\{-}\)\%(\%(<\(/\?\)\([^!/>[:space:]]\+\)\(\%([[:space:]]*[^/>=[:space:]]\+[[:space:]]*=[[:space:]]*\%([^"'' >\t]\+\|"[^"]*"\|''[^'']*''\)\|[[:space:]]\+[^/>=[:space:]]\+[[:space:]]*\)*\)[[:space:]]*\(/\?\)>\)\|\%(<!\[\(CDATA\)\[\(.\{-}\)\]\]>\)\|\(<!--.\{-}-->\)\)\(.*\)'
+  let tag_mx = '^\(\_.\{-}\)\%(\%(<\(/\?\)\([^!/>[:space:]]\+\)\(\%([[:space:]]*[^/>=[:space:]]\+[[:space:]]*=[[:space:]]*\%([^"'' >\t]\+\|"[^"]*"\|''[^'']*''\)\|[[:space:]]\+[^/>=[:space:]]\+[[:space:]]*\)*\)[[:space:]]*\(/\?\)>\)\|\%(<!\[\(CDATA\)\[\(.\{-}\)\]\]>\)\|\(<!--.\{-}-->\)\)'
 
-  while len(a:ctx['xml']) > 0
+  while a:ctx.xml !=# ''
     let m = matchlist(a:ctx.xml, tag_mx)
     if empty(m) | break | endif
+    let a:ctx.xml = a:ctx.xml[len(m[0]) :]
     let is_end_tag = m[2] == '/' && m[5] == ''
     let is_start_and_end_tag = m[2] == '' && m[5] == '/'
     let tag_name = m[3]
     let attrs = m[4]
 
-    if len(m[1])
+    if m[1] !=# ''
       let content .= s:decodeEntityReference(m[1])
     endif
 
@@ -218,33 +220,30 @@ function! s:__parse_tree(ctx, top)
       if len(stack) " TODO: checking whether opened tag is exist. 
         call remove(stack, -1)
       endif
-      let a:ctx['xml'] = m[9]
       continue
     endif
 
     " comment tag
     if m[8] != ''
-        let a:ctx.xml = m[9]
-        continue
+      continue
     endif
 
     " if element is a CDATA
     if m[6] != ''
-        let content .= m[7]
-        let a:ctx.xml = m[9]
-        continue
+      let content .= m[7]
+      continue
     endif
 
     let node = deepcopy(s:__template)
     let node.name = tag_name
     let attr_mx = '\([^=[:space:]]\+\)\s*\%(=\s*''\([^'']*\)''\|=\s*"\([^"]*\)"\|=\s*\(\w\+\)\|\)'
-    while len(attrs) > 0
+    while attrs !=# ''
       let attr_match = matchlist(attrs, attr_mx)
       if len(attr_match) == 0
         break
       endif
       let name = attr_match[1]
-      let value = len(attr_match[2]) ? attr_match[2] : len(attr_match[3]) ? attr_match[3] : len(attr_match[4]) ? attr_match[4] : ""
+      let value = attr_match[2] !=# '' ? attr_match[2] : attr_match[3] !=# '' ? attr_match[3] : attr_match[4] !=# '' ? attr_match[4] : ""
       if value == ""
         let value = name
       endif
@@ -261,12 +260,11 @@ function! s:__parse_tree(ctx, top)
       " opening tag, continue parsing its contents
       call add(stack, node)
     endif
-    let a:ctx['xml'] = m[9]
   endwhile
 endfunction
 " @vimlint(EVL102, 0, l:content)
 
-function! s:parse(xml)
+function! s:parse(xml) abort
   let top = deepcopy(s:__template)
   let oldmaxmempattern = &maxmempattern
   let oldmaxfuncdepth = &maxfuncdepth
@@ -287,11 +285,11 @@ function! s:parse(xml)
   throw "Parse Error"
 endfunction
 
-function! s:parseFile(fname)
+function! s:parseFile(fname) abort
   return s:parse(join(readfile(a:fname), "\n"))
 endfunction
 
-function! s:parseURL(url)
+function! s:parseURL(url) abort
   return s:parse(s:H.get(a:url).content)
 endfunction
 
