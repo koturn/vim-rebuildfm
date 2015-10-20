@@ -168,7 +168,7 @@ function! s:make_info(item) abort
       let info.note = s:parse_description('<html>' . c.value() . '</html>')
     elseif c.name ==# 'pubDate'
       let info.pubDate = c.value()
-    elseif c.name ==# 'itunes:summary'
+    elseif c.name ==# 'itunes:subtitle'
       let info.summary = substitute(c.value(), '\n', ' ', 'g')
     elseif c.name ==# 'itunes:duration'
       let info.duration = c.value()
